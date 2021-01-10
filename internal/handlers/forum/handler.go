@@ -50,9 +50,9 @@ func (h *handler) ForumCreate(c echo.Context) error {
 		return err
 	}
 
-	forum, err := h.forumStorage.CreateForum(forumInput)
+	forum, err := h.forumStorage.CreateForum(*forumInput)
 	if err != nil && err.Error() == "409" {
-		oldForum, err := h.forumStorage.GetForumDetails(models.Forum{Slug: forumInput.Slug})
+		oldForum, err := h.forumStorage.GetForumDetails(forumInput.Slug)
 		if err != nil {
 			return c.JSON(err.(models.ServError).Code, "")
 		}

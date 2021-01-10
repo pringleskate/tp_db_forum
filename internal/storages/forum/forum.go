@@ -12,28 +12,28 @@ import (
 )
 
 type Storage interface {
-	CreateForum(forumSlug models.ForumCreate) (forum models.Forum, err error)
-	GetForumDetails(forumSlug models.ForumInput) (forum models.Forum, err error)
-	UpdateThreadsCount(input models.ForumInput) (err error)
-	UpdatePostsCount(input models.ForumInput, posts int) (err error)
+	CreateForum(forumSlug models.Forum) (forum models.Forum, err error)
+	GetForumDetails(forumSlug string) (forum models.Forum, err error)
+	UpdateThreadsCount(input string) (err error)
+	UpdatePostsCount(input string, posts int) (err error)
 	AddUserToForum(userID int, forumID int) (err error)
-	CheckIfForumExists(input models.ForumInput) (err error)
-	GetForumID(input models.ForumInput) (ID int, err error)
+	CheckIfForumExists(input string) (err error)
+	GetForumID(input string) (ID int, err error)
 	GetForumForPost(forumSlug string, forum *models.Forum) (err error)
 
 	CreateThread(input models.Thread) (thread models.Thread, err error)
-	//GetThreadDetails(input models.ThreadInput) (thread models.Thread, err error)
+	//GetThreadDetails(input models.ThreadSlagOrID) (thread models.Thread, err error)
 	ThreadEdit(input models.ThreadUpdate) (thread models.Thread, err error)
-	GetThreadsByForum(input models.ForumGetThreads) (threads []models.Thread, err error)
-	CheckThreadIfExists(input models.ThreadInput) (thread models.ThreadInput, err error)
-	GetThreadForPost(input models.ThreadInput, post *models.Thread) (err error)
-	GetForumByThread(input *models.ThreadInput) (forum string, err error)
+	GetThreadsByForum(input models.ForumQueryParams) (threads []models.Thread, err error)
+	CheckThreadIfExists(input models.ThreadSlagOrID) (thread models.ThreadSlagOrID, err error)
+	GetThreadForPost(input models.ThreadSlagOrID, post *models.Thread) (err error)
+	GetForumByThread(input *models.ThreadSlagOrID) (forum string, err error)
 
-	CreatePosts(thread models.ThreadInput, forum string, created string, posts []models.PostCreate) (post []models.Post, err error)
+	CreatePosts(thread models.ThreadSlagOrID, forum string, created string, posts []models.PostCreate) (post []models.Post, err error)
 	CreatePost(input models.Post) (post models.Post, err error)
-	GetPostDetails(input models.PostInput, post *models.Post) (err error)
+	GetPostDetails(input int, post *models.Post) (err error)
 	UpdatePost(input models.PostUpdate) (post models.Post, err error)
-	GetPostsByThread(input models.ThreadGetPosts) (posts []models.Post, err error)
+	GetPostsByThread(input models.ThreadQueryParams) (posts []models.Post, err error)
 	CheckParentPostThread(post int) (thread int, err error)
 
 	CreateVote(vote models.Vote, update bool) (thread models.Thread, err error)
@@ -51,7 +51,7 @@ func NewStorage(db *pgx.ConnPool) Storage {
 	}
 }
 
-func (s *storage) CreateForum(forumSlug models.ForumCreate) (forum models.Forum, err error) {
+func (s *storage) CreateForum(forumSlug models.Forum) (forum models.Forum, err error) {
 	err = s.db.QueryRow("INSERT INTO forums (slug, title, user_nick) VALUES ($1, $2,(SELECT u.nickname FROM users u WHERE u.nickname = $3)) RETURNING slug, title, user_nick",
 		forumSlug.Slug, forumSlug.Title, forumSlug.User).Scan(&forum.Slug, &forum.Title, &forum.User)
 
@@ -59,51 +59,51 @@ func (s *storage) CreateForum(forumSlug models.ForumCreate) (forum models.Forum,
 /*	if pqErr, ok := err.(pgx.PgError); ok {
 		switch pqErr.Code {
 		case pgerrcode.UniqueViolation:
-			return forum, models.Error{Code: "409"}
+			return forum, models.ServError{Code: "409"}
 		case pgerrcode.NotNullViolation, pgerrcode.ForeignKeyViolation:
-			return forum, models.Error{Code: "404"}
+			return forum, models.ServError{Code: "404"}
 		default:
 			fmt.Println(err)
-			return forum, models.Error{Code: "500"}
+			return forum, models.ServError{Code: "500"}
 		}
 	}
 
 	return forum, nil*/
 }
 
-func (s *storage) GetForumDetails(forumSlug models.ForumInput) (forum models.Forum, err error) {
-	err = s.db.QueryRow("SELECT slug, title, threads, posts, user_nick FROM forums WHERE slug = $1", forumSlug.Slug).
+func (s *storage) GetForumDetails(forumSlug string) (forum models.Forum, err error) {
+	err = s.db.QueryRow("SELECT slug, title, threads, posts, user_nick FROM forums WHERE slug = $1", forumSlug).
 		Scan(&forum.Slug, &forum.Title, &forum.Threads, &forum.Posts, &forum.User)
 
 	return
 	/*if err != nil {
 		fmt.Println(err)
 		if err == pgx.ErrNoRows {
-			return forum, models.Error{Code: "404"}
+			return forum, models.ServError{Code: "404"}
 
 		}
-		return forum, models.Error{Code: "500"}
+		return forum, models.ServError{Code: "500"}
 	}
 
 	return forum, nil*/
 }
 
-func (s *storage) UpdateThreadsCount(input models.ForumInput) (err error) {
-	_, err = s.db.Exec("UPDATE forums SET threads = threads + 1 WHERE slug = $1", input.Slug)
+func (s *storage) UpdateThreadsCount(input string) (err error) {
+	_, err = s.db.Exec("UPDATE forums SET threads = threads + 1 WHERE slug = $1", input)
 	return
 /*	if err != nil {
 		fmt.Println(err)
-		return models.Error{Code: "500"}
+		return models.ServError{Code: "500"}
 	}
 	return*/
 }
 
-func (s *storage) UpdatePostsCount(input models.ForumInput, posts int) (err error) {
-	_, err = s.db.Exec("UPDATE forums SET posts = posts + $2 WHERE slug = $1", input.Slug, posts)
+func (s *storage) UpdatePostsCount(input string, posts int) (err error) {
+	_, err = s.db.Exec("UPDATE forums SET posts = posts + $2 WHERE slug = $1", input, posts)
 	return
 /*	if err != nil {
 		fmt.Println(err)
-		return models.Error{Code: "500"}
+		return models.ServError{Code: "500"}
 	}
 	return*/
 }
@@ -114,35 +114,35 @@ func (s *storage) AddUserToForum(userID int, forumID int) (err error) {
 		if pqErr, ok := err.(pgx.PgError); ok {
 			switch pqErr.Code {
 			case pgerrcode.UniqueViolation:
-				return models.Error{Code: "409"}
+				return models.ServError{Code: "409"}
 			}
 		}
-		return models.Error{Code: "500"}
+		return models.ServError{Code: "500"}
 	}
 */
 	return
 }
 
-func (s *storage) CheckIfForumExists(input models.ForumInput) (err error) {
+func (s *storage) CheckIfForumExists(input string) (err error) {
 	var ID int
-	err = s.db.QueryRow("SELECT ID from forums WHERE slug = $1", input.Slug).Scan(&ID)
+	err = s.db.QueryRow("SELECT ID from forums WHERE slug = $1", input).Scan(&ID)
 	/*if err != nil {
 		if err == pgx.ErrNoRows {
-			return models.Error{Code: "404"}
+			return models.ServError{Code: "404"}
 		}
-		return models.Error{Code: "500"}
+		return models.ServError{Code: "500"}
 	}
 */
 	return
 }
 
-func (s storage) GetForumID(input models.ForumInput) (ID int, err error) {
-	err = s.db.QueryRow("SELECT ID from forums WHERE slug = $1", input.Slug).Scan(&ID)
+func (s storage) GetForumID(input string) (ID int, err error) {
+	err = s.db.QueryRow("SELECT ID from forums WHERE slug = $1", input).Scan(&ID)
 	/*if err != nil {
 		if err == pgx.ErrNoRows {
-			return ID, models.Error{Code: "404"}
+			return ID, models.ServError{Code: "404"}
 		}
-		return ID, models.Error{Code: "500"}
+		return ID, models.ServError{Code: "500"}
 	}
 */
 	return
@@ -154,7 +154,7 @@ func (s *storage) GetForumForPost(forumSlug string, forum *models.Forum) (err er
 		Scan(&forum.Title, &forum.Threads, &forum.Posts, &forum.User)
 
 	/*if err != nil {
-		return models.Error{Code: "500"}
+		return models.ServError{Code: "500"}
 	}
 */
 	return
@@ -167,7 +167,7 @@ func (s *storage) CreateThread(input models.Thread) (thread models.Thread, err e
 				(SELECT f.slug FROM forums f WHERE f.slug = $3), 
 				$4, $5, $6, $7) 
 				RETURNING ID, author, created, forum, message, slug, title, votes`
-	return scanThread(s.db.QueryRow(query, input.Author, input.Created, input.Forum, input.Message, slugToNullable(input.Slug), input.Title, input.Votes))
+	return scanThread(s.db.QueryRow(query, input.Author, input.Created, input.Forum, input.Message, slugToNullable(input.Slag), input.Title, input.Votes))
 }
 
 //TODO 	ID, author, created, forum, message, slug, title, votes
@@ -182,7 +182,7 @@ func (s *storage) SelectThreadByID(ID int) (thread models.Thread, err error) {
 	return scanThread(s.db.QueryRow(query, ID))
 }
 
-/*func (s *storage) GetThreadDetails(input models.ThreadInput) (thread models.Thread, err error) {
+/*func (s *storage) GetThreadDetails(input models.ThreadSlagOrID) (thread models.Thread, err error) {
 	slug := sql.NullString{}
 	if input.Slug == "" {
 		err = s.db.QueryRow(selectByID, input.ThreadID).
@@ -194,10 +194,10 @@ func (s *storage) SelectThreadByID(ID int) (thread models.Thread, err error) {
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return thread, models.Error{Code: "404"}
+			return thread, models.ServError{Code: "404"}
 
 		}
-		return thread, models.Error{Code: "500"}
+		return thread, models.ServError{Code: "500"}
 	}
 
 	if slug.Valid {
@@ -225,10 +225,10 @@ func (s *storage) ThreadEdit(input models.ThreadUpdate) (thread models.Thread, e
 
 	query += fmt.Sprintf("WHERE ID = $1 OR slug = $2 RETURNING ID, author, created, forum, message, slug, title, votes")
 
-	return scanThread(s.db.QueryRow(query, input.ThreadID, input.Slug))
+	return scanThread(s.db.QueryRow(query, input.ThreadID, input))
 }
 
-func (s *storage) GetThreadsByForum(input models.ForumGetThreads) (threads []models.Thread, err error) {
+func (s *storage) GetThreadsByForum(input models.ForumQueryParams) (threads []models.Thread, err error) {
 	var rows *pgx.Rows
 	if input.Since == "" && !input.Desc {
 		query := `SELECT ID, author, created, forum, message, slug, title, votes FROM threads WHERE forum = $1 ORDER BY created LIMIT $2`
@@ -250,32 +250,32 @@ func (s *storage) GetThreadsByForum(input models.ForumGetThreads) (threads []mod
 	return scanThreadRows(rows)
 }
 
-func (s storage) CheckThreadIfExists(input models.ThreadInput) (thread models.ThreadInput, err error) {
+func (s storage) CheckThreadIfExists(input models.ThreadSlagOrID) (thread models.ThreadSlagOrID, err error) {
 	query := `SELECT ID from threads WHERE ID = $1 OR slug = $2`
-	err = s.db.QueryRow(query, input.ThreadID, input.Slug).Scan(&thread.ThreadID)
+	err = s.db.QueryRow(query, input.ThreadID, input.ThreadSlug).Scan(&thread.ThreadID)
 	return
 }
 
-func (s *storage) GetThreadForPost(input models.ThreadInput, thread *models.Thread) (err error) {
+func (s *storage) GetThreadForPost(input models.ThreadSlagOrID, thread *models.Thread) (err error) {
 	slug := sql.NullString{}
 	query := `SELECT author, created, forum, ID, message, slug, title, votes FROM threads WHERE ID = $1`
 	err = s.db.QueryRow(query, input.ThreadID).
 		Scan(&thread.Author, &thread.Created, &thread.Forum, &thread.ID, &thread.Message, &slug, &thread.Title, &thread.Votes)
 
 	if err != nil {
-		return models.Error{Code: "500"}
+		return models.ServError{Code: 500}
 	}
 
 	if slug.Valid {
-		thread.Slug = slug.String
+		thread.Slag = slug.String
 	}
 
 	return
 }
 
-func (s *storage) GetForumByThread(input *models.ThreadInput) (forum string, err error) {
+func (s *storage) GetForumByThread(input *models.ThreadSlagOrID) (forum string, err error) {
 	query := `SELECT forum, ID FROM threads WHERE ID = $1 OR slug = $2`
-	err = s.db.QueryRow(query, input.ThreadID, input.Slug).Scan(&forum, &input.ThreadID)
+	err = s.db.QueryRow(query, input.ThreadID, input.ThreadSlug).Scan(&forum, &input.ThreadID)
 	return
 }
 
@@ -301,7 +301,7 @@ func (s *storage) CreateVote(vote models.Vote, update bool) (thread models.Threa
 
 	insertVote := "INSERT INTO votes (user_nick, voice, thread) VALUES ($1, $2, $3) ON CONFLICT ON CONSTRAINT uniq_votes DO UPDATE SET voice = EXCLUDED.voice;"
 
-	_, err = tx.Exec(insertVote, vote.User, boolVoice, vote.Thread.ThreadID)
+	_, err = tx.Exec(insertVote, vote.Nickname, boolVoice, vote. ThreadSlagOrID.ThreadID)
 	if err != nil {
 		if txErr := tx.Rollback(); txErr != nil {
 			fmt.Println(txErr)
@@ -311,12 +311,12 @@ func (s *storage) CreateVote(vote models.Vote, update bool) (thread models.Threa
 		/*if pqErr, ok := err.(pgx.PgError); ok {
 			switch pqErr.Code {
 			case pgerrcode.ForeignKeyViolation:
-				return thread, models.Error{Code: "404"}
+				return thread, models.ServError{Code: "404"}
 			default:
-				return thread, models.Error{Code: "500"}
+				return thread, models.ServError{Code: "500"}
 			}
 		}
-		return thread, models.Error{Code: "500"}*/
+		return thread, models.ServError{Code: "500"}*/
 	}
 
 	slug := sql.NullString{}
@@ -329,10 +329,10 @@ func (s *storage) CreateVote(vote models.Vote, update bool) (thread models.Threa
 		delta = 2
 	}
 	if boolVoice {
-		err = tx.QueryRow(queryUp, vote.Thread.ThreadID, delta).
+		err = tx.QueryRow(queryUp, vote.ThreadSlagOrID.ThreadID, delta).
 			Scan(&thread.ID, &thread.Author, &thread.Created, &thread.Forum, &thread.Message, &slug, &thread.Title, &thread.Votes)
 	} else {
-		err = tx.QueryRow(queryDown, vote.Thread.ThreadID, delta).
+		err = tx.QueryRow(queryDown, vote.ThreadSlagOrID.ThreadID, delta).
 			Scan(&thread.ID, &thread.Author, &thread.Created, &thread.Forum, &thread.Message, &slug, &thread.Title, &thread.Votes)
 	}
 
@@ -346,7 +346,7 @@ func (s *storage) CreateVote(vote models.Vote, update bool) (thread models.Threa
 	}
 
 	if slug.Valid {
-		thread.Slug = slug.String
+		thread.Slag = slug.String
 	}
 
 	if commitErr := tx.Commit(); commitErr != nil {
@@ -363,33 +363,33 @@ func (s *storage) CreateVote(vote models.Vote, update bool) (thread models.Threa
 	tx, err := s.db.Begin()
 	if err != nil {
 		fmt.Println("txerr", err)
-		return thread, models.Error{Code: "500"}
+		return thread, models.ServError{Code: "500"}
 	}
 
 	_, err = tx.Exec("SET LOCAL synchronous_commit TO OFF")
 	if err != nil {
 		if txErr := tx.Rollback(); txErr != nil {
 			fmt.Println(txErr)
-			return thread, models.Error{Code: "500"}
+			return thread, models.ServError{Code: "500"}
 		}
-		return thread, models.Error{Code: "500"}
+		return thread, models.ServError{Code: "500"}
 	}
 
 	_, err = tx.Exec(insertVote, vote.User, boolVoice, vote.Thread.ThreadID)
 	if err != nil {
 		if txErr := tx.Rollback(); txErr != nil {
 			fmt.Println(txErr)
-			return thread, models.Error{Code: "500"}
+			return thread, models.ServError{Code: "500"}
 		}
 		if pqErr, ok := err.(pgx.PgError); ok {
 			switch pqErr.Code {
 			case pgerrcode.ForeignKeyViolation:
-				return thread, models.Error{Code: "404"}
+				return thread, models.ServError{Code: "404"}
 			default:
-				return thread, models.Error{Code: "500"}
+				return thread, models.ServError{Code: "500"}
 			}
 		}
-		return thread, models.Error{Code: "500"}
+		return thread, models.ServError{Code: "500"}
 	}
 
 	slug := sql.NullString{}
@@ -415,10 +415,10 @@ func (s *storage) CreateVote(vote models.Vote, update bool) (thread models.Threa
 	if err != nil {
 		if txErr := tx.Rollback(); txErr != nil {
 			fmt.Println(txErr)
-			return thread, models.Error{Code: "500"}
+			return thread, models.ServError{Code: "500"}
 		}
 
-		return thread, models.Error{Code: "500"}
+		return thread, models.ServError{Code: "500"}
 	}
 
 	if slug.Valid {
@@ -427,7 +427,7 @@ func (s *storage) CreateVote(vote models.Vote, update bool) (thread models.Threa
 
 	if commitErr := tx.Commit(); commitErr != nil {
 		fmt.Println(commitErr)
-		return thread, models.Error{Code: "500"}
+		return thread, models.ServError{Code: "500"}
 	}
 
 	return
@@ -442,31 +442,31 @@ func (s *storage) CheckDoubleVote(vote models.Vote) (thread models.Thread, nonCo
 
 	var oldVoice bool
 	queryVoice := `SELECT voice FROM votes WHERE user_nick = $1 AND thread = $2`
-	err = s.db.QueryRow(queryVoice, vote.User, vote.Thread.ThreadID).Scan(&oldVoice)
+	err = s.db.QueryRow(queryVoice, vote.Nickname, vote.ThreadSlagOrID.ThreadID).Scan(&oldVoice)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return thread,false,  nil
 		}
-		return thread, false, models.Error{Code: "500"}
+		return thread, false, models.ServError{Code: 500}
 		//return
 	}
 
 	if oldVoice != boolVoice {
-		return thread, true, models.Error{Code: "101"}
+		return thread, true, models.ServError{Code: 101}
 	}
 
 	//// ID, author, created, forum, message, slug, title, votes
 	queryThread := `SELECT ID, author, created, forum, message, slug, title, votes FROM threads WHERE ID = $1`
-	thread, err = scanThread(s.db.QueryRow(queryThread, vote.Thread.ThreadID))
+	thread, err = scanThread(s.db.QueryRow(queryThread, vote.ThreadSlagOrID.ThreadID))
 
 	if err != nil {
-		return thread, false, models.Error{Code: "500"}
+		return thread, false, models.ServError{Code: 500}
 	}
 
-	return thread, false, models.Error{Code: "409"}
+	return thread, false, models.ServError{Code: 409}
 }
 
-func (s storage) CreatePosts(thread models.ThreadInput, forum string, created string, posts []models.PostCreate) (post []models.Post, err error) {
+func (s storage) CreatePosts(thread models.ThreadSlagOrID, forum string, created string, posts []models.PostCreate) (post []models.Post, err error) {
 	sqlStr := "INSERT INTO posts(id, parent, thread, forum, author, created, message, path) VALUES "
 	vals := []interface{}{}
 	for _, post := range posts {
@@ -476,7 +476,7 @@ func (s storage) CreatePosts(thread models.ThreadInput, forum string, created st
 		).Scan(&authorID)
 		if err != nil {
 			fmt.Println("cannot find user", post.Author, err)
-			return nil, models.Error{Code: "404", Message: "cannot find user"}
+			return nil, models.ServError{Code: 404, Message: "cannot find user"}
 		}
 
 		var forumID int
@@ -485,7 +485,7 @@ func (s storage) CreatePosts(thread models.ThreadInput, forum string, created st
 		).Scan(&forumID)
 		if err != nil {
 			fmt.Println("cannot find forumID", forum)
-			return nil, models.Error{Code: "404", Message: "cannot find thread"}
+			return nil, models.ServError{Code: 404, Message: "cannot find thread"}
 
 			//	return nil, errors.New("404")
 		}
@@ -512,13 +512,13 @@ func (s storage) CreatePosts(thread models.ThreadInput, forum string, created st
 				post.Parent,
 			).Scan(&parentThreadId)
 			if err != nil {
-				return nil, models.Error{Code: "409", Message: "Parent post was created in another thread"}
+				return nil, models.ServError{Code: 409, Message: "Parent post was created in another thread"}
 
 				/*	fmt.Println("cannot find thread by post", post.Parent)
 					return nil, err*/
 			}
 			if parentThreadId != int32(thread.ThreadID) {
-				return nil, models.Error{Code: "409", Message: "Parent post was created in another thread"}
+				return nil, models.ServError{Code: 409, Message: "Parent post was created in another thread"}
 			}
 
 			sqlStr += " (nextval('post_id_seq'::regclass), ?, ?, ?, ?, ?, ?, " +
@@ -575,21 +575,21 @@ func ReplaceSQL(old, searchPattern string) string {
 func (s *storage) CreatePost(input models.Post) (post models.Post, err error) {
 	if input.Parent == 0 {
 		err = s.db.QueryRow("INSERT INTO posts (author, created, forum, message, parent, thread, path) VALUES ($1,$2,$3,$4,$5,$6, array[(select currval('post_id_seq')::integer)]) RETURNING ID",
-			input.Author, input.Created, input.Forum, input.Message, input.Parent, input.ThreadInput.ThreadID).Scan(&post.ID)
+			input.Author, input.Created, input.Forum, input.Message, input.Parent, input.ThreadSlagOrID.ThreadID).Scan(&post.ID)
 	} else {
 		err = s.db.QueryRow("INSERT INTO posts (author, created, forum, message, parent, thread, path) VALUES ($1,$2,$3,$4,$5,$6, (SELECT path FROM posts WHERE id = $5) || (select currval('post_id_seq')::integer)) RETURNING ID",
-			input.Author, input.Created, input.Forum, input.Message, input.Parent, input.ThreadInput.ThreadID).Scan(&post.ID)
+			input.Author, input.Created, input.Forum, input.Message, input.Parent, input.ThreadSlagOrID.ThreadID).Scan(&post.ID)
 	}
 
 	if pqErr, ok := err.(pgx.PgError); ok {
 		fmt.Println(err)
 		switch pqErr.Code {
 		case pgerrcode.UniqueViolation:
-			return post, models.Error{Code: "409", Message: "conflict post"}
+			return post, models.ServError{Code: 409, Message: "conflict post"}
 		case pgerrcode.NotNullViolation, pgerrcode.ForeignKeyViolation:
-			return post, models.Error{Code: "404", Message: "conflict post"}
+			return post, models.ServError{Code: 404, Message: "conflict post"}
 		default:
-			return post, models.Error{Code: "500", Message: "conflict post"}
+			return post, models.ServError{Code: 500, Message: "conflict post"}
 		}
 	}
 
@@ -598,21 +598,21 @@ func (s *storage) CreatePost(input models.Post) (post models.Post, err error) {
 	post.Forum = input.Forum
 	post.Message = input.Message
 	post.Parent = input.Parent
-	post.ThreadInput.ThreadID = input.ThreadInput.ThreadID
+	post.ThreadSlagOrID.ThreadID = input.ThreadSlagOrID.ThreadID
 	post.IsEdited = false
 
 	return
 }
 
-func (s *storage) GetPostDetails(input models.PostInput, post *models.Post) (err error) {
-	err = s.db.QueryRow("SELECT author, created, forum, message, ID , edited, parent, thread FROM posts WHERE ID = $1", input.ID).
-		Scan(&post.Author, &post.Created, &post.Forum, &post.Message, &post.ID, &post.IsEdited, &post.Parent, &post.ThreadInput.ThreadID)
+func (s *storage) GetPostDetails(input int, post *models.Post) (err error) {
+	err = s.db.QueryRow("SELECT author, created, forum, message, ID , edited, parent, thread FROM posts WHERE ID = $1", input).
+		Scan(&post.Author, &post.Created, &post.Forum, &post.Message, &post.ID, &post.IsEdited, &post.Parent, &post.ThreadSlagOrID.ThreadID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return models.Error{Code: "404"}
+			return models.ServError{Code: 404}
 
 		}
-		return models.Error{Code: "500"}
+		return models.ServError{Code: 500}
 	}
 	return
 }
@@ -623,21 +623,21 @@ func (s *storage) UpdatePost(input models.PostUpdate) (post models.Post, err err
 		Scan(&oldMessage)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return post, models.Error{Code: "404"}
+			return post, models.ServError{Code: 404}
 		}
-		return post, models.Error{Code: "500"}
+		return post, models.ServError{Code: 500}
 	}
 
 	if input.Message != "" && input.Message != oldMessage {
 		err = s.db.QueryRow("UPDATE posts SET message = $1, edited = $2 WHERE ID = $3 RETURNING author, created, forum, message, ID , edited, parent, thread", input.Message, true, input.ID).
-			Scan(&post.Author, &post.Created, &post.Forum, &post.Message, &post.ID, &post.IsEdited, &post.Parent, &post.ThreadInput.ThreadID)
+			Scan(&post.Author, &post.Created, &post.Forum, &post.Message, &post.ID, &post.IsEdited, &post.Parent, &post.ThreadSlagOrID.ThreadID)
 	} else {
 		err = s.db.QueryRow("SELECT author, created, forum, message, ID , edited, parent, thread FROM posts WHERE ID = $1", input.ID).
-			Scan(&post.Author, &post.Created, &post.Forum, &post.Message, &post.ID, &post.IsEdited, &post.Parent, &post.ThreadInput.ThreadID)
+			Scan(&post.Author, &post.Created, &post.Forum, &post.Message, &post.ID, &post.IsEdited, &post.Parent, &post.ThreadSlagOrID.ThreadID)
 	}
 
 	if err != nil {
-		return post, models.Error{Code: "500"}
+		return post, models.ServError{Code: 500}
 	}
 	return
 }
@@ -749,93 +749,93 @@ const selectPostsParentTreeLimitSinceDescByID = `
 	ORDER BY p.path[1] DESC, p.path[2:]
 `
 
-func (s *storage) GetPostsByThread(input models.ThreadGetPosts) (posts []models.Post, err error){
+func (s *storage) GetPostsByThread(input models.ThreadQueryParams) (posts []models.Post, err error){
 	var rows *pgx.Rows
 	posts  = make([]models.Post, 0)
 	switch input.Sort {
 	case "flat":
 		if input.Since > 0 {
 			if input.Desc {
-				rows, err = s.db.Query(selectPostsFlatLimitSinceDescByID, input.ThreadInput.ThreadID,
+				rows, err = s.db.Query(selectPostsFlatLimitSinceDescByID, input.ThreadSlagOrID.ThreadID,
 					input.Since, input.Limit)
 			} else {
-				rows, err = s.db.Query(selectPostsFlatLimitSinceByID, input.ThreadInput.ThreadID,
+				rows, err = s.db.Query(selectPostsFlatLimitSinceByID, input.ThreadSlagOrID.ThreadID,
 					input.Since, input.Limit)
 			}
 		} else {
 			if input.Desc == true {
-				rows, err = s.db.Query(selectPostsFlatLimitDescByID, input.ThreadInput.ThreadID, input.Limit)
+				rows, err = s.db.Query(selectPostsFlatLimitDescByID, input.ThreadSlagOrID.ThreadID, input.Limit)
 			} else {
-				rows, err = s.db.Query(selectPostsFlatLimitByID, input.ThreadInput.ThreadID, input.Limit)
+				rows, err = s.db.Query(selectPostsFlatLimitByID, input.ThreadSlagOrID.ThreadID, input.Limit)
 			}
 		}
 	case "tree":
 		if input.Since > 0 {
 			if input.Desc {
-				rows, err = s.db.Query(selectPostsTreeLimitSinceDescByID, input.ThreadInput.ThreadID,
+				rows, err = s.db.Query(selectPostsTreeLimitSinceDescByID, input.ThreadSlagOrID.ThreadID,
 					input.Since, input.Limit)
 			} else {
-				rows, err = s.db.Query(selectPostsTreeLimitSinceByID, input.ThreadInput.ThreadID,
+				rows, err = s.db.Query(selectPostsTreeLimitSinceByID, input.ThreadSlagOrID.ThreadID,
 					input.Since, input.Limit)
 			}
 		} else {
 			if input.Desc {
-				rows, err = s.db.Query(selectPostsTreeLimitDescByID, input.ThreadInput.ThreadID, input.Limit)
+				rows, err = s.db.Query(selectPostsTreeLimitDescByID, input.ThreadSlagOrID.ThreadID, input.Limit)
 			} else {
-				rows, err = s.db.Query(selectPostsTreeLimitByID, input.ThreadInput.ThreadID, input.Limit)
+				rows, err = s.db.Query(selectPostsTreeLimitByID, input.ThreadSlagOrID.ThreadID, input.Limit)
 			}
 		}
 	case "parent_tree":
 		if input.Since > 0 {
 			if input.Desc {
-				rows, err = s.db.Query(selectPostsParentTreeLimitSinceDescByID, input.ThreadInput.ThreadID, input.ThreadInput.ThreadID,
+				rows, err = s.db.Query(selectPostsParentTreeLimitSinceDescByID, input.ThreadSlagOrID.ThreadID, input.ThreadSlagOrID.ThreadID,
 					input.Since, input.Limit)
 			} else {
-				rows, err = s.db.Query(selectPostsParentTreeLimitSinceByID, input.ThreadInput.ThreadID, input.ThreadInput.ThreadID,
+				rows, err = s.db.Query(selectPostsParentTreeLimitSinceByID, input.ThreadSlagOrID.ThreadID, input.ThreadSlagOrID.ThreadID,
 					input.Since, input.Limit)
 			}
 		} else {
 			if input.Desc {
-				rows, err = s.db.Query(selectPostsParentTreeLimitDescByID, input.ThreadInput.ThreadID, input.ThreadInput.ThreadID,
+				rows, err = s.db.Query(selectPostsParentTreeLimitDescByID, input.ThreadSlagOrID.ThreadID, input.ThreadSlagOrID.ThreadID,
 					input.Limit)
 			} else {
-				rows, err = s.db.Query(selectPostsParentTreeLimitByID, input.ThreadInput.ThreadID, input.ThreadInput.ThreadID,
+				rows, err = s.db.Query(selectPostsParentTreeLimitByID, input.ThreadSlagOrID.ThreadID, input.ThreadSlagOrID.ThreadID,
 					input.Limit)
 			}
 		}
 	default:
 		if input.Since > 0 {
 			if input.Desc {
-				rows, err = s.db.Query(selectPostsFlatLimitSinceDescByID, input.ThreadInput.ThreadID,
+				rows, err = s.db.Query(selectPostsFlatLimitSinceDescByID, input.ThreadSlagOrID.ThreadID,
 					input.Since, input.Limit)
 			} else {
-				rows, err = s.db.Query(selectPostsFlatLimitSinceByID, input.ThreadInput.ThreadID,
+				rows, err = s.db.Query(selectPostsFlatLimitSinceByID, input.ThreadSlagOrID.ThreadID,
 					input.Since, input.Limit)
 			}
 		} else {
 			if input.Desc == true {
-				rows, err = s.db.Query(selectPostsFlatLimitDescByID, input.ThreadInput.ThreadID, input.Limit)
+				rows, err = s.db.Query(selectPostsFlatLimitDescByID, input.ThreadSlagOrID.ThreadID, input.Limit)
 			} else {
-				rows, err = s.db.Query(selectPostsFlatLimitByID, input.ThreadInput.ThreadID, input.Limit)
+				rows, err = s.db.Query(selectPostsFlatLimitByID, input.ThreadSlagOrID.ThreadID, input.Limit)
 			}
 		}
 	}
 
 	if err != nil {
-		return posts, models.Error{Code: "500"}
+		return posts, models.ServError{Code: 500}
 	}
 	defer rows.Close()
 
 	if rows == nil {
-		return posts, models.Error{Code: "500"}
+		return posts, models.ServError{Code: 500}
 	}
 
 	for rows.Next() {
 		post := models.Post{}
 
-		err = rows.Scan(&post.ID, &post.Author, &post.Created, &post.IsEdited, &post.Message, &post.Parent, &post.ThreadInput.ThreadID, &post.Forum)
+		err = rows.Scan(&post.ID, &post.Author, &post.Created, &post.IsEdited, &post.Message, &post.Parent, &post.ThreadSlagOrID.ThreadID, &post.Forum)
 		if err != nil {
-			return posts, models.Error{Code: "500"}
+			return posts, models.ServError{Code: 500}
 		}
 
 		posts = append(posts, post)
@@ -848,9 +848,9 @@ func (s storage) CheckParentPostThread(post int) (thread int, err error) {
 	err = s.db.QueryRow("SELECT thread FROM posts WHERE ID = $1", post).Scan(&thread)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return 0, models.Error{Code: "409"}
+			return 0, models.ServError{Code: 409}
 		}
-		return 0, models.Error{Code: "500"}
+		return 0, models.ServError{Code: 500}
 	}
 
 	return

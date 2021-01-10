@@ -27,7 +27,7 @@ func scanThread(r *pgx.Row) (t models.Thread, err error) {
 		return t, err
 	}
 	if slug.Valid {
-		t.Slug = slug.String
+		t.Slag = slug.String
 	}
 	return t, err
 }
@@ -45,7 +45,7 @@ func scanThreadRows(r *pgx.Rows) (threads []models.Thread, err error) {
 		}
 
 		if slug.Valid {
-			thread.Slug = slug.String
+			thread.Slag = slug.String
 		}
 
 		threads = append(threads, thread)
