@@ -2,6 +2,7 @@ package serviceHandler
 
 import (
 	"github.com/labstack/echo"
+	"github.com/pringleskate/tp_db_forum/internal/storages/service"
 	"net/http"
 )
 
@@ -11,10 +12,10 @@ type Handler interface {
 }
 
 type handler struct {
-	forumStorage storages.ForumStorage
+	forumStorage service.Service
 }
 
-func NewHandler(forumStorage storages.ForumStorage) *handler {
+func NewHandler(forumStorage service.Service) *handler {
 	return &handler{
 		forumStorage: forumStorage,
 	}
