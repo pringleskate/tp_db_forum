@@ -11,7 +11,7 @@ type Storage interface {
 	CreateUser(input models.User) (user models.User, err error)
 	GetProfile(input string) (user models.User, err error)
 	UpdateProfile(input models.User) (user models.User, err error)
-	GetUsers(input models.ForumGetUsers, forumID int) (users []models.User, err error)
+	GetUsers(input models.ForumQueryParams, forumID int) (users []models.User, err error)
 	GetUserForPost(input string,  user *models.User) (err error)
 	GetUserIDByNickname(input string) (userID int, err error)
 	GetEmailConflictUser(email string) (user models.User, err error)
@@ -45,19 +45,19 @@ var (
 
 func (s *storage) CreateUser(input models.User) (user models.User, err error) {
 	_, err = s.db.Exec("INSERT INTO users (nickname, email, fullname, about) VALUES ($1, $2, $3, $4)",
-		input.Nickname, input.Email, input.Fullname, input.About)
+		input.Nickname, input.Email, input.FullName, input.About)
 
 	if pqErr, ok := err.(pgx.PgError); ok {
 		switch pqErr.Code {
 		case pgerrcode.UniqueViolation:
-			return user, models.Error{Code: "409", Message: "conflict user"}
+			return user, models.ServError{Code: 409, Message: "conflict user"}
 		default:
-			return user, models.Error{Code: "500"}
+			return user, models.ServError{Code: 500}
 		}
 	}
 
 	user.Nickname = input.Nickname
-	user.Fullname = input.Fullname
+	user.FullName = input.FullName
 	user.Email = input.Email
 	user.About = input.About
 
@@ -66,61 +66,61 @@ func (s *storage) CreateUser(input models.User) (user models.User, err error) {
 
 func (s *storage) GetProfile(input string) (user models.User, err error) {
 	err = s.db.QueryRow("SELECT fullname, email, about, nickname FROM users WHERE nickname = $1", input).
-		Scan(&user.Fullname, &user.Email, &user.About, &user.Nickname)
+		Scan(&user.FullName, &user.Email, &user.About, &user.Nickname)
 
 	if err != nil {
 		fmt.Println(err)
 		if err == pgx.ErrNoRows {
-			return user, models.Error{Code: "404"}
+			return user, models.ServError{Code: 404}
 
 		}
-		return user, models.Error{Code: "500"}
+		return user, models.ServError{Code: 500}
 	}
 
 	return
 }
 
 func (s *storage) UpdateProfile(input models.User) (user models.User, err error) {
-	if input.About != "" && input.Email != "" && input.Fullname != "" {
-		err = s.db.QueryRow(updateFull, input.Nickname, input.Fullname, input.Email, input.About, input.Nickname).
-			Scan(&user.Fullname, &user.Email, &user.About, &user.Nickname)
+	if input.About != "" && input.Email != "" && input.FullName != "" {
+		err = s.db.QueryRow(updateFull, input.Nickname, input.FullName, input.Email, input.About, input.Nickname).
+			Scan(&user.FullName, &user.Email, &user.About, &user.Nickname)
 	} else if input.About != "" && input.Email != "" {
 		err = s.db.QueryRow(updateEmailAbout, input.Nickname, input.Email, input.About, input.Nickname).
-			Scan(&user.Fullname, &user.Email, &user.About, &user.Nickname)
-	} else if input.Email != "" && input.Fullname != "" {
-		err = s.db.QueryRow(updateEmailFullname, input.Nickname, input.Fullname, input.Email, input.Nickname).
-			Scan(&user.Fullname, &user.Email, &user.About, &user.Nickname)
-	} else if input.About != "" && input.Fullname != "" {
-		err = s.db.QueryRow(updateFullnameAbout, input.Nickname, input.Fullname, input.About, input.Nickname).
-			Scan(&user.Fullname, &user.Email, &user.About, &user.Nickname)
+			Scan(&user.FullName, &user.Email, &user.About, &user.Nickname)
+	} else if input.Email != "" && input.FullName != "" {
+		err = s.db.QueryRow(updateEmailFullname, input.Nickname, input.FullName, input.Email, input.Nickname).
+			Scan(&user.FullName, &user.Email, &user.About, &user.Nickname)
+	} else if input.About != "" && input.FullName != "" {
+		err = s.db.QueryRow(updateFullnameAbout, input.Nickname, input.FullName, input.About, input.Nickname).
+			Scan(&user.FullName, &user.Email, &user.About, &user.Nickname)
 	} else if input.About != "" {
 		err = s.db.QueryRow(updateAbout, input.Nickname, input.About, input.Nickname).
-			Scan(&user.Fullname, &user.Email, &user.About, &user.Nickname)
-	} else if input.Fullname != "" {
-		err = s.db.QueryRow(updateFullname, input.Nickname, input.Fullname, input.Nickname).
-			Scan(&user.Fullname, &user.Email, &user.About, &user.Nickname)
+			Scan(&user.FullName, &user.Email, &user.About, &user.Nickname)
+	} else if input.FullName != "" {
+		err = s.db.QueryRow(updateFullname, input.Nickname, input.FullName, input.Nickname).
+			Scan(&user.FullName, &user.Email, &user.About, &user.Nickname)
 	} else if input.Email != "" {
 		err = s.db.QueryRow(updateEmail, input.Nickname, input.Email, input.Nickname).
-			Scan(&user.Fullname, &user.Email, &user.About, &user.Nickname)
+			Scan(&user.FullName, &user.Email, &user.About, &user.Nickname)
 	}
 
 	if err == pgx.ErrNoRows {
-		return user, models.Error{Code: "404"}
+		return user, models.ServError{Code: 404}
 	}
 
 	if pqErr, ok := err.(pgx.PgError); ok {
 		switch pqErr.Code {
 		case pgerrcode.UniqueViolation:
-			return user, models.Error{Code: "409"}
+			return user, models.ServError{Code: 409}
 		default:
-			return user, models.Error{Code: "500"}
+			return user, models.ServError{Code: 500}
 		}
 	}
 
 	return
 }
 
-func (s *storage) GetUsers(input models.ForumGetUsers, forumID int) (users []models.User, err error) {
+func (s *storage) GetUsers(input models.ForumQueryParams, forumID int) (users []models.User, err error) {
 	var rows *pgx.Rows
 	users = make([]models.User, 0)
 	if input.Since == "" && !input.Desc {
@@ -135,7 +135,7 @@ func (s *storage) GetUsers(input models.ForumGetUsers, forumID int) (users []mod
 
 	if err != nil {
 		fmt.Println(err)
-		return users, models.Error{Code: "500"}
+		return users, models.ServError{Code: 500}
 	}
 
 	defer rows.Close()
@@ -143,9 +143,9 @@ func (s *storage) GetUsers(input models.ForumGetUsers, forumID int) (users []mod
 	for rows.Next() {
 		user := models.User{}
 
-		err = rows.Scan(&user.Nickname, &user.Fullname, &user.About, &user.Email)
+		err = rows.Scan(&user.Nickname, &user.FullName, &user.About, &user.Email)
 		if err != nil {
-			return users, models.Error{Code: "500"}
+			return users, models.ServError{Code: 500}
 		}
 
 		users = append(users, user)
@@ -157,10 +157,10 @@ func (s *storage) GetUsers(input models.ForumGetUsers, forumID int) (users []mod
 func (s *storage) GetUserForPost(input string, user *models.User) (err error) {
 	user.Nickname = input
 	err = s.db.QueryRow("SELECT fullname, email, about FROM users WHERE nickname = $1", input).
-		Scan(&user.Fullname, &user.Email, &user.About)
+		Scan(&user.FullName, &user.Email, &user.About)
 
 	if err != nil {
-		return models.Error{Code: "500"}
+		return models.ServError{Code: 500}
 	}
 
 	return
@@ -169,7 +169,7 @@ func (s *storage) GetUserForPost(input string, user *models.User) (err error) {
 func (s *storage) GetUserIDByNickname(input string) (userID int, err error) {
 	err = s.db.QueryRow("SELECT ID FROM users WHERE nickname = $1", input).Scan(&userID)
 	if err != nil {
-		return userID, models.Error{Code: "500"}
+		return userID, models.ServError{Code: 500}
 	}
 
 	return
@@ -177,15 +177,15 @@ func (s *storage) GetUserIDByNickname(input string) (userID int, err error) {
 
 func (s *storage) GetEmailConflictUser(email string) (user models.User, err error) {
 	err = s.db.QueryRow("SELECT fullname, nickname, about, email FROM users WHERE email = $1", email).
-		Scan(&user.Fullname, &user.Nickname, &user.About, &user.Email)
+		Scan(&user.FullName, &user.Nickname, &user.About, &user.Email)
 
 	if err != nil {
 		fmt.Println(err)
 		if err == pgx.ErrNoRows {
-			return user, models.Error{Code: "404"}
+			return user, models.ServError{Code: 404}
 
 		}
-		return user, models.Error{Code: "500"}
+		return user, models.ServError{Code: 500}
 	}
 
 	return

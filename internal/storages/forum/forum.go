@@ -22,6 +22,8 @@ type Storage interface {
 	GetForumForPost(forumSlug string, forum *models.Forum) (err error)
 
 	CreateThread(input models.Thread) (thread models.Thread, err error)
+	SelectThreadByID(ID int) (thread models.Thread, err error)
+	SelectThreadBySlug(slug string) (thread models.Thread, err error)
 	//GetThreadDetails(input models.ThreadSlagOrID) (thread models.Thread, err error)
 	ThreadEdit(input models.ThreadUpdate) (thread models.Thread, err error)
 	GetThreadsByForum(input models.ForumQueryParams) (threads []models.Thread, err error)
@@ -30,7 +32,7 @@ type Storage interface {
 	GetForumByThread(input *models.ThreadSlagOrID) (forum string, err error)
 
 	CreatePosts(thread models.ThreadSlagOrID, forum string, created string, posts []models.PostCreate) (post []models.Post, err error)
-	CreatePost(input models.Post) (post models.Post, err error)
+//	CreatePost(input models.Post) (post models.Post, err error)
 	GetPostDetails(input int, post *models.Post) (err error)
 	UpdatePost(input models.PostUpdate) (post models.Post, err error)
 	GetPostsByThread(input models.ThreadQueryParams) (posts []models.Post, err error)
@@ -182,31 +184,6 @@ func (s *storage) SelectThreadByID(ID int) (thread models.Thread, err error) {
 	return scanThread(s.db.QueryRow(query, ID))
 }
 
-/*func (s *storage) GetThreadDetails(input models.ThreadSlagOrID) (thread models.Thread, err error) {
-	slug := sql.NullString{}
-	if input.Slug == "" {
-		err = s.db.QueryRow(selectByID, input.ThreadID).
-			Scan(&thread.Author, &thread.Created, &thread.Forum, &thread.ID, &thread.Message, &slug, &thread.Title, &thread.Votes)
-	} else {
-		err = s.db.QueryRow(selectBySlug, input.Slug).
-			Scan(&thread.Author, &thread.Created, &thread.Forum, &thread.ID, &thread.Message, &slug, &thread.Title, &thread.Votes)
-	}
-
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return thread, models.ServError{Code: "404"}
-
-		}
-		return thread, models.ServError{Code: "500"}
-	}
-
-	if slug.Valid {
-		thread.Slug = slug.String
-	}
-
-	return
-}
-*/
 func (s *storage) ThreadEdit(input models.ThreadUpdate) (thread models.Thread, err error) {
 	query := "UPDATE threads SET "
 	selectQuery := `SELECT ID, author, created, forum, message, slug, title, votes FROM threads WHERE ID = $1 OR slug = $2`
@@ -571,7 +548,7 @@ func ReplaceSQL(old, searchPattern string) string {
 	}
 	return old
 }
-
+/*
 func (s *storage) CreatePost(input models.Post) (post models.Post, err error) {
 	if input.Parent == 0 {
 		err = s.db.QueryRow("INSERT INTO posts (author, created, forum, message, parent, thread, path) VALUES ($1,$2,$3,$4,$5,$6, array[(select currval('post_id_seq')::integer)]) RETURNING ID",
@@ -603,17 +580,20 @@ func (s *storage) CreatePost(input models.Post) (post models.Post, err error) {
 
 	return
 }
+*/
 
+//TODO сделать getfullpst, как у Вовы
 func (s *storage) GetPostDetails(input int, post *models.Post) (err error) {
-	err = s.db.QueryRow("SELECT author, created, forum, message, ID , edited, parent, thread FROM posts WHERE ID = $1", input).
+	query := `SELECT author, created, forum, message, ID , edited, parent, thread FROM posts WHERE ID = $1`
+	err = s.db.QueryRow(query, input).
 		Scan(&post.Author, &post.Created, &post.Forum, &post.Message, &post.ID, &post.IsEdited, &post.Parent, &post.ThreadSlagOrID.ThreadID)
-	if err != nil {
+	/*if err != nil {
 		if err == pgx.ErrNoRows {
 			return models.ServError{Code: 404}
 
 		}
 		return models.ServError{Code: 500}
-	}
+	}*/
 	return
 }
 
@@ -845,13 +825,15 @@ func (s *storage) GetPostsByThread(input models.ThreadQueryParams) (posts []mode
 }
 
 func (s storage) CheckParentPostThread(post int) (thread int, err error) {
-	err = s.db.QueryRow("SELECT thread FROM posts WHERE ID = $1", post).Scan(&thread)
-	if err != nil {
+	query := `SELECT thread FROM posts WHERE ID = $1`
+	err = s.db.QueryRow(query, post).Scan(&thread)
+
+/*	if err != nil {
 		if err == pgx.ErrNoRows {
 			return 0, models.ServError{Code: 409}
 		}
 		return 0, models.ServError{Code: 500}
-	}
+	}*/
 
 	return
 }
