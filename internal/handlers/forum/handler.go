@@ -85,14 +85,14 @@ func (h *handler) ForumThreadsGet(c echo.Context) error {
 		return err
 	}
 
-	err := h.forumStorage.CheckIfForumExists(models.ForumInput{Slug: input.Slug})
+	err = h.forumStorage.CheckIfForumExists(slug)
 	if err != nil {
 		return c.JSON(err.(models.ServError).Code, "")
 	}
-	if input.Limit == 0 {
-		input.Limit = 10000
+	if params.Limit == 0 {
+		params.Limit = 10000
 	}
-	threads, err :=  h.forumStorage.GetThreadsByForum(input)
+	threads, err :=  h.forumStorage.GetThreadsByForum(params)
 	if err != nil {
 		return c.JSON(err.(models.ServError).Code, "")
 	}
@@ -107,15 +107,15 @@ func (h *handler) ForumUsersGet(c echo.Context) error {
 		return err
 	}
 
-	forumID, err := h.forumStorage.GetForumID(models.ForumInput{Slug: input.Slug})
+	forumID, err := h.forumStorage.GetForumID(slug)
 	if err != nil {
 		return c.JSON(err.(models.ServError).Code, "")
 	}
 
-	if input.Limit == 0 {
-		input.Limit = math.MaxInt32
+	if params.Limit == 0 {
+		params.Limit = 10000
 	}
-	users, err :=  h.userStorage.GetUsers(input, forumID)
+	users, err :=  h.userStorage.GetUsers(params, forumID)
 	if err != nil {
 		return c.JSON(err.(models.ServError).Code, "")
 	}
@@ -134,16 +134,16 @@ func (h *handler) ThreadCreate(c echo.Context) error {
 
 	thread, err := h.forumStorage.CreateThread(*threadInput)
 	if err == nil {
-		err = h.forumStorage.UpdateThreadsCount(models.ForumInput{Slug: input.Forum})
+		err = h.forumStorage.UpdateThreadsCount(threadInput.Forum)
 		if err != nil {
 			return c.JSON(err.(models.ServError).Code, "")
 		}
-		userID, err := h.userStorage.GetUserIDByNickname(input.Author)
+		userID, err := h.userStorage.GetUserIDByNickname(threadInput.Author)
 		if err != nil {
 			return c.JSON(err.(models.ServError).Code, "")
 		}
 
-		forumID, err := h.forumStorage.GetForumID(models.ForumInput{Slug: input.Forum})
+		forumID, err := h.forumStorage.GetForumID(threadInput.Forum)
 		if err != nil {
 			return c.JSON(err.(models.ServError).Code, "")
 		}
@@ -203,18 +203,18 @@ func (h *handler) ThreadPostsGet(c echo.Context) error {
 
 	params.ThreadSlagOrID = isItSlugOrID(c.Param("slug_or_id"))
 
-	thread, err := h.forumStorage.CheckThreadIfExists(input.ThreadInput)
+	thread, err := h.forumStorage.CheckThreadIfExists(params.ThreadSlagOrID)
 	if err != nil {
 		return c.JSON(err.(models.ServError).Code, "")
 	}
 
-	input.ThreadInput = thread
+	params.ThreadSlagOrID = thread
 
-	if input.Limit == 0 {
-		input.Limit = math.MaxInt32
+	if params.Limit == 0 {
+		params.Limit = math.MaxInt32
 	}
 
-	posts, err := h.forumStorage.GetPostsByThread(input)
+	posts, err := h.forumStorage.GetPostsByThread(params)
 	if err != nil {
 		return c.JSON(err.(models.ServError).Code, "")
 	}
@@ -231,15 +231,15 @@ func (h *handler) ThreadVote(c echo.Context) error {
 
 	voteInput.ThreadSlagOrID = isItSlugOrID(c.Param("slug_or_id"))
 
-	thread, err := h.forumStorage.CheckThreadIfExists(input.Thread)
+	thread, err := h.forumStorage.CheckThreadIfExists(voteInput.ThreadSlagOrID)
 	if err != nil {
 		return c.JSON(err.(models.ServError).Code, "")
 	}
-	input.Thread = thread
+	voteInput.ThreadSlagOrID = thread
 
 	var updateFlag bool
 
-	checkThread, err := h.forumStorage.CheckDoubleVote(input)
+	_, checkThread, err := h.forumStorage.CheckDoubleVote(*voteInput)
 	if err != nil {
 		if err.Error() == "409" {
 			return c.JSON(models.ConflictData, checkThread)
@@ -252,7 +252,7 @@ func (h *handler) ThreadVote(c echo.Context) error {
 		}
 	}
 
-	output, err := h.forumStorage.CreateVote(input, updateFlag)
+	output, err := h.forumStorage.CreateVote(*voteInput, updateFlag)
 	if err != nil {
 		return c.JSON(err.(models.ServError).Code, "")
 	}
@@ -274,17 +274,17 @@ func (h *handler) PostCreate(c echo.Context) error {
 
 	posts := make([]models.Post, 0)
 
-	forum, err := h.Threads.GetForumByThread(&threadInput)
+	forum, err := h.forumStorage.GetForumByThread(&slagOrID)
 	if err != nil {
 		return c.JSON(err.(models.ServError).Code, "")
 	}
 
-	if len(postsInput) == 0 {
+	if len(postInput) == 0 {
 		return c.JSON(http.StatusCreated, posts)
 	}
 
 	created := time.Now().Format(time.RFC3339Nano)
-	posts, err = h.Posts.CreatePosts(threadInput, forum, created, postsInput)
+	posts, err = h.forumStorage.CreatePosts(thread, forum, created, posts)
 	if err != nil {
 		if err.Error() == "404" {
 			fmt.Println(err)
@@ -294,7 +294,7 @@ func (h *handler) PostCreate(c echo.Context) error {
 		return c.JSON(err.(models.ServError).Code, "")
 	}
 
-	err = h.Forums.UpdatePostsCount(models.ForumInput{Slug: forum}, len(posts))
+	err = h.forumStorage.UpdatePostsCount(forum, len(posts))
 	if err != nil {
 		return c.JSON(err.(models.ServError).Code, "")
 	}
@@ -310,7 +310,7 @@ func (h *handler) PostGet(c echo.Context) error {
 
 	related := relatedParse(c.QueryParam("related"))
 
-	post, err := h.Service.GetPost(id, related)
+	post, err := h.forumStorage.GetPost(id, related)
 	if err != nil {
 		return c.JSON(err.(models.ServError).Code, "")
 	}
@@ -329,7 +329,7 @@ func (h *handler) PostUpdate(c echo.Context) (err error) {
 		return err
 	}
 
-	post, err := h.Service.UpdatePost(*postInput)
+	post, err := h.forumStorage.UpdatePost(*postInput)
 	if err != nil {
 		return c.JSON(err.(models.ServError).Code, "")
 	}
