@@ -5,6 +5,9 @@ import (
 	"github.com/jackc/pgx"
 	"github.com/labstack/echo"
 	"github.com/pringleskate/tp_db_forum/internal/models"
+	"github.com/pringleskate/tp_db_forum/internal/storages/forum"
+	"github.com/pringleskate/tp_db_forum/internal/storages/profile"
+	"golang.org/x/mod/sumdb/storage"
 	"log"
 	"net/http"
 	"net/url"
@@ -32,17 +35,12 @@ type Handler interface {
 }
 
 type handler struct {
-	threadStorage storages.ThreadStorage
-	postStorage storages.PostStorage
-	forumStorage storages.ForumStorage
-	userStorage storages.UserStorage
+	forumStorage forum.Storage
+	userStorage profile.Storage
 }
 
-func NewHandler(threadStorage storages.ThreadStorage, postStorage storages.PostStorage,
-	forumStorage storages.ForumStorage, userStorage storages.UserStorage) *handler {
+func NewHandler(forumStorage forum.Storage, userStorage profile.Storage) *handler {
 	return &handler{
-		threadStorage: threadStorage,
-		postStorage: postStorage,
 		forumStorage: forumStorage,
 		userStorage: userStorage,
 	}

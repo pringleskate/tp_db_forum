@@ -4,6 +4,7 @@ import (
 	"github.com/jackc/pgx"
 	"github.com/labstack/echo"
 	"github.com/pringleskate/tp_db_forum/internal/models"
+	"github.com/pringleskate/tp_db_forum/internal/storages/profile"
 	"log"
 	"net/http"
 	"strings"
@@ -16,10 +17,10 @@ type Handler interface {
 }
 
 type handler struct {
-	userStorage storages.UserStorage
+	userStorage profile.Storage
 }
 
-func NewHandler(userStorage storages.UserStorage) *handler {
+func NewHandler(userStorage profile.Storage) *handler {
 	return &handler{
 		userStorage: userStorage,
 	}
