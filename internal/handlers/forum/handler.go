@@ -2,6 +2,8 @@ package forumHandler
 
 import (
 	"fmt"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx"
 	"github.com/labstack/echo"
 	"github.com/pringleskate/tp_db_forum/internal/models"
 	"github.com/pringleskate/tp_db_forum/internal/storages/forum"
@@ -51,10 +53,25 @@ func (h *handler) ForumCreate(c echo.Context) error {
 	}
 
 	forum, err := h.forumStorage.CreateForum(*forumInput)
-	if err != nil && err.Error() == "409" {
+	if pqErr, ok := err.(pgx.PgError); ok {
+		switch pqErr.Code {
+		case pgerrcode.UniqueViolation:
+			err = models.ServError{Code: 409}
+		case pgerrcode.NotNullViolation, pgerrcode.ForeignKeyViolation:
+			err = models.ServError{Code: 404}
+		default:
+			fmt.Println(err)
+			err = models.ServError{Code: 500}
+		}
+	}
+	if err != nil && err.(models.ServError).Code == 409 {
 		oldForum, err := h.forumStorage.GetForumDetails(forumInput.Slug)
 		if err != nil {
-			return c.JSON(err.(models.ServError).Code, "")
+			fmt.Println(err)
+			if err == pgx.ErrNoRows {
+				return c.JSON(models.NotFound, "")
+			}
+			return c.JSON(models.InternalServerError, "")
 		}
 
 		return c.JSON(models.ConflictData, oldForum)
@@ -72,7 +89,11 @@ func (h *handler) ForumGet(c echo.Context) error {
 
 	forumRequest, err := h.forumStorage.GetForumDetails(slug)
 	if err != nil {
-		return c.JSON(err.(models.ServError).Code, "")
+		fmt.Println(err)
+		if err == pgx.ErrNoRows {
+			return c.JSON(models.NotFound, "")
+		}
+		return c.JSON(models.InternalServerError, "")
 	}
 	
 	return c.JSON(http.StatusOK, forumRequest)
@@ -87,14 +108,17 @@ func (h *handler) ForumThreadsGet(c echo.Context) error {
 
 	err = h.forumStorage.CheckIfForumExists(slug)
 	if err != nil {
-		return c.JSON(err.(models.ServError).Code, "")
+		if err == pgx.ErrNoRows {
+			return c.JSON(models.NotFound, "")
+		}
+		return c.JSON(models.InternalServerError, "")
 	}
 	if params.Limit == 0 {
 		params.Limit = 10000
 	}
 	threads, err :=  h.forumStorage.GetThreadsByForum(params)
 	if err != nil {
-		return c.JSON(err.(models.ServError).Code, "")
+		return c.JSON(models.InternalServerError, "")
 	}
 
 	return c.JSON(http.StatusOK, threads)
@@ -133,6 +157,16 @@ func (h *handler) ThreadCreate(c echo.Context) error {
 	threadInput.Forum = c.Param("slug")
 
 	thread, err := h.forumStorage.CreateThread(*threadInput)
+	if pqErr, ok := err.(pgx.PgError); ok {
+		switch pqErr.Code {
+		case pgerrcode.UniqueViolation:
+			err = models.ServError{Code: 409}
+		case pgerrcode.NotNullViolation, pgerrcode.ForeignKeyViolation:
+			err = models.ServError{Code: 404}
+		default:
+			err = models.ServError{Code: 500}
+		}
+	}
 	if err == nil {
 		err = h.forumStorage.UpdateThreadsCount(threadInput.Forum)
 		if err != nil {
@@ -156,8 +190,8 @@ func (h *handler) ThreadCreate(c echo.Context) error {
 		return c.JSON(http.StatusCreated, thread)
 	}
 
-	if err.Error() == "409"  {
-		oldThread, err := h.forumStorage.GetThreadDetails(models.ThreadInput{Slug: input.Slug})
+	if err.(models.ServError).Code == 409 {
+		oldThread, err := h.forumStorage.SelectThreadBySlug(threadInput.Slag)
 		if err == nil {
 			return c.JSON(models.ConflictData, oldThread)
 		}
@@ -170,9 +204,19 @@ func (h *handler) ThreadCreate(c echo.Context) error {
 func (h *handler) ThreadGet(c echo.Context) error {
 	slugOrID := isItSlugOrID(c.Param("slug_or_id"))
 
-	thread, err := h.forumStorage.GetThreadDetails(input)
-	if err != nil {
-		return c.JSON(err.(models.ServError).Code, "")
+	thread := models.Thread{}
+	var err error
+
+	if slugOrID.ThreadSlug == "" {
+		thread, err = h.forumStorage.SelectThreadByID(slugOrID.ThreadID)
+		if err != nil {
+			return c.JSON(err.(models.ServError).Code, "")
+		}
+	} else {
+		thread, err = h.forumStorage.SelectThreadBySlug(slugOrID.ThreadSlug)
+		if err != nil {
+			return c.JSON(err.(models.ServError).Code, "")
+		}
 	}
 
 	return c.JSON(http.StatusOK, thread)
@@ -188,7 +232,11 @@ func (h *handler) ThreadUpdate(c echo.Context) error {
 
 	thread, err := h.forumStorage.ThreadEdit(*threadInput)
 	if err != nil {
-		return c.JSON(err.(models.ServError).Code, "")
+		fmt.Println(err)
+		if err == pgx.ErrNoRows {
+			return c.JSON(models.NotFound, "")
+		}
+		return c.JSON(models.InternalServerError, "")
 	}
 
 	return c.JSON(http.StatusOK, thread)
@@ -233,28 +281,38 @@ func (h *handler) ThreadVote(c echo.Context) error {
 
 	thread, err := h.forumStorage.CheckThreadIfExists(voteInput.ThreadSlagOrID)
 	if err != nil {
-		return c.JSON(err.(models.ServError).Code, "")
+		fmt.Println(err)
+		if err == pgx.ErrNoRows {
+			return c.JSON(models.NotFound, "")
+		}
+		return c.JSON(models.InternalServerError, "")
 	}
+
 	voteInput.ThreadSlagOrID = thread
 
 	var updateFlag bool
 
 	_, checkThread, err := h.forumStorage.CheckDoubleVote(*voteInput)
 	if err != nil {
-		if err.Error() == "409" {
+		if err.(models.ServError).Code == 409 {
 			return c.JSON(models.ConflictData, checkThread)
 		}
-		if err.Error() == "500" {
+		if err.(models.ServError).Code == 500 {
 			return c.JSON(err.(models.ServError).Code, "")
 		}
-		if err.Error() == "101" {
+		if err.(models.ServError).Code == 101 {
 			updateFlag = true
 		}
 	}
 
 	output, err := h.forumStorage.CreateVote(*voteInput, updateFlag)
+	if pqErr, ok := err.(pgx.PgError); ok {
+		if pqErr.Code ==  pgerrcode.ForeignKeyViolation{
+			return c.JSON(models.NotFound, "")
+		}
+	}
 	if err != nil {
-		return c.JSON(err.(models.ServError).Code, "")
+		return c.JSON(models.InternalServerError, "")
 	}
 
 	return c.JSON(http.StatusOK, output)
@@ -262,7 +320,7 @@ func (h *handler) ThreadVote(c echo.Context) error {
 
 
 func (h *handler) PostCreate(c echo.Context) error {
-	postInput := make([]models.Post, 0)
+	postInput := make([]models.PostCreate, 0)
 
 	err := c.Bind(&postInput)
 	if err != nil {
@@ -270,7 +328,6 @@ func (h *handler) PostCreate(c echo.Context) error {
 	}
 
 	slagOrID := isItSlugOrID(c.Param("slug_or_id"))
-	thread := models.Thread{}
 
 	posts := make([]models.Post, 0)
 
@@ -284,7 +341,7 @@ func (h *handler) PostCreate(c echo.Context) error {
 	}
 
 	created := time.Now().Format(time.RFC3339Nano)
-	posts, err = h.forumStorage.CreatePosts(thread, forum, created, posts)
+	posts, err = h.forumStorage.CreatePosts(slagOrID, forum, created, postInput)
 	if err != nil {
 		if err.Error() == "404" {
 			fmt.Println(err)
@@ -303,16 +360,53 @@ func (h *handler) PostCreate(c echo.Context) error {
 }
 
 func (h *handler) PostGet(c echo.Context) error {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return err
 	}
 
-	related := relatedParse(c.QueryParam("related"))
+	relatedSlice := relatedParse(c.QueryParam("related"))
+	related := strings.Join(relatedSlice, " ")
 
-	post, err := h.forumStorage.GetPost(id, related)
+	postFull := models.PostFull{
+		Author: nil,
+		Forum:  nil,
+		Post:   nil,
+		Thread: nil,
+	}
+
+	post := new(models.Post)
+	err = h.forumStorage.GetPostDetails(id, post)
+	postFull.Post = post
 	if err != nil {
 		return c.JSON(err.(models.ServError).Code, "")
+	}
+
+	author := new(models.User)
+	if strings.Contains(related, "user") {
+		err = h.userStorage.GetUserForPost(postFull.Post.Author, author)
+		postFull.Author = author
+		if err != nil {
+			return c.JSON(err.(models.ServError).Code, "")
+		}
+	}
+
+	forum := new(models.Forum)
+	if strings.Contains(related, "forum") {
+		err = h.forumStorage.GetForumForPost(postFull.Post.Forum, forum)
+		postFull.Forum = forum
+		if err != nil {
+			return c.JSON(err.(models.ServError).Code, "")
+		}
+	}
+
+	thread := new(models.Thread)
+	if strings.Contains(related, "thread") {
+		err = h.forumStorage.GetThreadForPost(postFull.Post.ThreadSlagOrID, thread)
+		postFull.Thread = thread
+		if err != nil {
+			return c.JSON(err.(models.ServError).Code, "")
+		}
 	}
 
 	return c.JSON(http.StatusOK, post)
