@@ -2,7 +2,6 @@ package profile
 
 import (
 	"fmt"
-	//"fmt"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx"
 	"github.com/pringleskate/tp_db_forum/internal/models"
