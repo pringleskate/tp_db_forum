@@ -45,7 +45,8 @@ func (s *storage) CreateForum(forumSlug models.ForumCreate) (forum models.Forum,
 	err = s.db.QueryRow("INSERT INTO forums (slug, title, user_nick) VALUES ($1, $2,(SELECT u.nickname FROM users u WHERE u.nickname = $3)) RETURNING slug, title, user_nick",
 		forumSlug.Slug, forumSlug.Title, forumSlug.User).Scan(&forum.Slug, &forum.Title, &forum.User)
 
-	if pqErr, ok := err.(pgx.PgError); ok {
+	return
+/*	if pqErr, ok := err.(pgx.PgError); ok {
 		switch pqErr.Code {
 		case pgerrcode.UniqueViolation:
 			return forum, models.Error{Code: "409"}
@@ -57,14 +58,15 @@ func (s *storage) CreateForum(forumSlug models.ForumCreate) (forum models.Forum,
 		}
 	}
 
-	return forum, nil
+	return forum, nil*/
 }
 
 func (s *storage) GetForumDetails(forumSlug models.ForumInput) (forum models.Forum, err error) {
 	err = s.db.QueryRow("SELECT slug, title, threads, posts, user_nick FROM forums WHERE slug = $1", forumSlug.Slug).
 		Scan(&forum.Slug, &forum.Title, &forum.Threads, &forum.Posts, &forum.User)
 
-	if err != nil {
+	return
+	/*if err != nil {
 		fmt.Println(err)
 		if err == pgx.ErrNoRows {
 			return forum, models.Error{Code: "404"}
@@ -73,25 +75,27 @@ func (s *storage) GetForumDetails(forumSlug models.ForumInput) (forum models.For
 		return forum, models.Error{Code: "500"}
 	}
 
-	return forum, nil
+	return forum, nil*/
 }
 
 func (s *storage) UpdateThreadsCount(input models.ForumInput) (err error) {
 	_, err = s.db.Exec("UPDATE forums SET threads = threads + 1 WHERE slug = $1", input.Slug)
-	if err != nil {
+	return
+/*	if err != nil {
 		fmt.Println(err)
 		return models.Error{Code: "500"}
 	}
-	return
+	return*/
 }
 
 func (s *storage) UpdatePostsCount(input models.ForumInput, posts int) (err error) {
 	_, err = s.db.Exec("UPDATE forums SET posts = posts + $2 WHERE slug = $1", input.Slug, posts)
-	if err != nil {
+	return
+/*	if err != nil {
 		fmt.Println(err)
 		return models.Error{Code: "500"}
 	}
-	return
+	return*/
 }
 
 func (s *storage) AddUserToForum(userID int, forumID int) (err error) {
