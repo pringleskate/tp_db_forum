@@ -85,7 +85,7 @@ func (s service) GetForumThreads(input models.ForumGetThreads) ([]models.Thread,
 		return []models.Thread{}, err
 	}
 	if input.Limit == 0 {
-		input.Limit = math.MaxInt32
+		input.Limit = 10000
 	}
 	return s.threadStorage.GetThreadsByForum(input)
 }
