@@ -1,4 +1,4 @@
-package databaseService
+package profile
 
 import (
 	"github.com/jackc/pgx"
@@ -32,7 +32,7 @@ func (s *service) Clear() (err error) {
 
 func (s *service) Status() (status models.Status, err error) {
 	err = s.db.QueryRow("SELECT (SELECT COUNT(*) FROM forums), (SELECT COUNT(*) FROM threads), (SELECT COUNT(*) FROM posts), (SELECT COUNT(*) FROM users)").
-				Scan(&status.Forum, &status.Thread, &status.Post, &status.User)
+		Scan(&status.Forum, &status.Thread, &status.Post, &status.User)
 	if err != nil && err != pgx.ErrNoRows {
 		return status, models.Error{Code: "500"}
 	}
