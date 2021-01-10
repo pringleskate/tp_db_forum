@@ -2,13 +2,13 @@ package services
 
 import (
 	"fmt"
-	"github.com/pringleskate/TP_DB_homework/internal/models"
-	"github.com/pringleskate/TP_DB_homework/internal/storages/databaseService"
-	"github.com/pringleskate/TP_DB_homework/internal/storages/forumStorage"
-	"github.com/pringleskate/TP_DB_homework/internal/storages/postStorage"
-	"github.com/pringleskate/TP_DB_homework/internal/storages/threadStorage"
-	"github.com/pringleskate/TP_DB_homework/internal/storages/userStorage"
-	"github.com/pringleskate/TP_DB_homework/internal/storages/voteStorage"
+	"github.com/pringleskate/tp_db_forum/internal/models"
+	"github.com/pringleskate/tp_db_forum/internal/storages/databaseService"
+	"github.com/pringleskate/tp_db_forum/internal/storages/forumStorage"
+	"github.com/pringleskate/tp_db_forum/internal/storages/postStorage"
+	"github.com/pringleskate/tp_db_forum/internal/storages/threadStorage"
+	"github.com/pringleskate/tp_db_forum/internal/storages/userStorage"
+	"github.com/pringleskate/tp_db_forum/internal/storages/voteStorage"
 	"math"
 	"strings"
 )

@@ -3,7 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/pringleskate/TP_DB_homework/internal/models"
+	"github.com/pringleskate/tp_db_forum/internal/models"
 	"github.com/valyala/fasthttp"
 	"log"
 	"strconv"

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx"
-	"github.com/pringleskate/TP_DB_homework/internal/models"
+	"github.com/pringleskate/tp_db_forum/internal/models"
 )
 
 type Storage interface {

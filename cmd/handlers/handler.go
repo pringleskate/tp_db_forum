@@ -3,12 +3,12 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
-	"github.com/pringleskate/TP_DB_homework/internal/models"
-	"github.com/pringleskate/TP_DB_homework/internal/services"
-	"github.com/pringleskate/TP_DB_homework/internal/storages/forumStorage"
-	"github.com/pringleskate/TP_DB_homework/internal/storages/postStorage"
-	"github.com/pringleskate/TP_DB_homework/internal/storages/threadStorage"
-	"github.com/pringleskate/TP_DB_homework/internal/storages/userStorage"
+	"github.com/pringleskate/tp_db_forum/internal/models"
+	"github.com/pringleskate/tp_db_forum/internal/services"
+	"github.com/pringleskate/tp_db_forum/internal/storages/forumStorage"
+	"github.com/pringleskate/tp_db_forum/internal/storages/postStorage"
+	"github.com/pringleskate/tp_db_forum/internal/storages/threadStorage"
+	"github.com/pringleskate/tp_db_forum/internal/storages/userStorage"
 	"github.com/valyala/fasthttp"
 	"strconv"
 )

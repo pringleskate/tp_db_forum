@@ -1,4 +1,4 @@
-module github.com/pringleskate/TP_DB_homework
+module github.com/pringleskate/tp_db_forum
 
 go 1.15
 
