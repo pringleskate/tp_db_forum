@@ -1,11 +1,9 @@
 package profileHandler
 
 import (
-	"github.com/jackc/pgx"
 	"github.com/labstack/echo"
 	"github.com/pringleskate/tp_db_forum/internal/models"
 	"github.com/pringleskate/tp_db_forum/internal/storages/profile"
-	"log"
 	"net/http"
 	"strings"
 )
@@ -34,17 +32,17 @@ func (h *handler) ProfileCreate(c echo.Context) error {
 
 	userInput.Nickname = c.Param("nickname")
 
-	user, err := h.userStorage.CreateUser(*userInput)
+	user, err := h.userStorage.UserCreate(*userInput)
 
 	if err == nil {
 		return c.JSON(http.StatusCreated, user)
 	}
 
 	users := make([]models.User, 0)
-	if err.Error() == "409" {
-		userNick, err := h.userStorage.GetProfile(userInput.Nickname)
-		if err != nil && err.Error() != "404"{
-			return c.JSON(models.InternalServerError, "")
+	if err.(models.ServError).Code == 409 {
+		userNick, err := h.userStorage.SelectFullUser(userInput.Nickname)
+		if err != nil && err.(models.ServError).Code != 404 {
+			return c.JSON(models.InternalServerError, models.Error{})
 		}
 		if err == nil {
 			users = append(users, userNick)
@@ -54,9 +52,9 @@ func (h *handler) ProfileCreate(c echo.Context) error {
 			return c.JSON(http.StatusConflict, users)
 		}
 
-		userEmail, err := h.userStorage.GetEmailConflictUser(userInput.Email)
-		if err != nil && err.Error() != "404"{
-			return c.JSON(models.InternalServerError, "")
+		userEmail, err := h.userStorage.SelectUserByEmail(userInput.Email)
+		if err != nil && err.(models.ServError).Code != 404 {
+			return c.JSON(models.InternalServerError, models.Error{})
 		}
 		if err == nil {
 			users = append(users, userEmail)
@@ -65,20 +63,16 @@ func (h *handler) ProfileCreate(c echo.Context) error {
 		return c.JSON(http.StatusConflict, users)
 	}
 
-	return c.JSON(models.InternalServerError, "")
+	return c.JSON(err.(models.ServError).Code, models.Error{})
 }
 
 func (h *handler) ProfileGet(c echo.Context) error {
 
 	nickname := c.Param("nickname")
 
-	user, err := h.userStorage.GetProfile(nickname)
+	user, err := h.userStorage.SelectFullUser(nickname)
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return c.JSON(models.NotFound, models.Error{Message: ""})
-		}
-		log.Print(err)
-		return c.JSON(models.InternalServerError, models.Error{Message: ""})
+		return c.JSON(err.(models.ServError).Code, models.Error{})
 	}
 	return c.JSON(http.StatusOK, user)
 }
@@ -92,16 +86,16 @@ func (h *handler) ProfileUpdate(c echo.Context) error {
 	userInput.Nickname = c.Param("nickname")
 
 	if userInput.Email == "" && userInput.FullName == "" && userInput.About == "" {
-		user, err :=  h.userStorage.GetProfile(userInput.Nickname)
+		user, err :=  h.userStorage.SelectFullUser(userInput.Nickname)
 		if err != nil {
-			return c.JSON(err.(models.ServError).Code, "")
+			return c.JSON(err.(models.ServError).Code, models.Error{})
 		}
 		return c.JSON(http.StatusOK, user)
 	}
 
-	user, err := h.userStorage.UpdateProfile(*userInput)
+	user, err := h.userStorage.EditUser(*userInput)
 	if err != nil {
-		return c.JSON(err.(models.ServError).Code, "")
+		return c.JSON(err.(models.ServError).Code, models.Error{})
 	}
 
 	return c.JSON(http.StatusOK, user)

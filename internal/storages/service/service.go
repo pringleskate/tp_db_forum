@@ -5,36 +5,24 @@ import (
 	"github.com/pringleskate/tp_db_forum/internal/models"
 )
 
-type Service interface {
-	Clear() (err error)
-	Status() (status models.Status, err error)
+type Service struct {
+	Db *pgx.ConnPool
 }
 
-type service struct {
-	db *pgx.ConnPool
-
-}
-
-/* constructor */
-func NewStorage(db *pgx.ConnPool) Service {
-	return &service{
-		db: db,
-	}
-}
-
-func (s *service) Clear() (err error) {
-	_, err = s.db.Exec("TRUNCATE users, forums, threads, posts, forum_users, votes CASCADE")
+func (s *Service) Clear() (err error) {
+	query := `TRUNCATE users, forums, threads, posts, forum_users, votes CASCADE`
+	_, err = s.Db.Exec(query)
 	if err != nil {
-		return models.Error{Code: "500"}
+		return models.ServError{Code: 500}
 	}
 	return
 }
 
-func (s *service) Status() (status models.Status, err error) {
-	err = s.db.QueryRow("SELECT (SELECT COUNT(*) FROM forums), (SELECT COUNT(*) FROM threads), (SELECT COUNT(*) FROM posts), (SELECT COUNT(*) FROM users)").
-		Scan(&status.Forum, &status.Thread, &status.Post, &status.User)
+func (s *Service) Status() (status models.Status, err error) {
+	query := `SELECT (SELECT COUNT(*) FROM forums), (SELECT COUNT(*) FROM threads), (SELECT COUNT(*) FROM posts), (SELECT COUNT(*) FROM users)`
+	err = s.Db.QueryRow(query).Scan(&status.Forum, &status.Thread, &status.Post, &status.User)
 	if err != nil && err != pgx.ErrNoRows {
-		return status, models.Error{Code: "500"}
+		return status, models.ServError{Code: 500}
 	}
 
 	return

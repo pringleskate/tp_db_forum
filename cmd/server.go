@@ -8,8 +8,10 @@ import (
 	forumHandler "github.com/pringleskate/tp_db_forum/internal/handlers/forum"
 	profileHandler "github.com/pringleskate/tp_db_forum/internal/handlers/profile"
 	serviceHandler "github.com/pringleskate/tp_db_forum/internal/handlers/service"
+	"github.com/pringleskate/tp_db_forum/internal/storages/forum"
+	"github.com/pringleskate/tp_db_forum/internal/storages/profile"
+	"github.com/pringleskate/tp_db_forum/internal/storages/service"
 	"io/ioutil"
-	"log"
 )
 
 func main()  {
@@ -33,21 +35,20 @@ func main()  {
 		return
 	}
 
-	err = LoadSchemaSQL(db)
+	/*err = LoadSchemaSQL(db)
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
 
-	log.Println("created tables")
-	forStorage := storages.NewForumStorage(db)
-	thrStorage := storages.NewThreadStorage(db)
-	poStorage := storages.NewPostStorage(db)
-	uStorage := storages.NewUserStorage(db)
+	log.Println("Created tables")*/
+	forStorage := forum.Storage{Db: db}
+	uStorage := profile.Storage{Db: db}
+	servStorage := service.Service{Db: db}
 
-	forHandler := forumHandler.NewHandler(thrStorage, poStorage, forStorage, uStorage)
+	forHandler := forumHandler.NewHandler(forStorage, uStorage)
 	profHandler := profileHandler.NewHandler(uStorage)
-	servHandler := serviceHandler.NewHandler(forStorage)
+	servHandler := serviceHandler.NewHandler(servStorage)
 
 	handlers.Router(e, forHandler, profHandler, servHandler)
 

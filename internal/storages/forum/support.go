@@ -21,7 +21,6 @@ func slugToNullable(slug string) sql.NullString {
 func scanThread(r *pgx.Row) (t models.Thread, err error) {
 	slug := sql.NullString{}
 
-	// ID, author, created, forum, message, slug, title, votes
 	err = r.Scan(&t.ID, &t.Author, &t.Created, &t.Forum, &t.Message, &slug, &t.Title, &t.Votes)
 	if err != nil {
 		return t, err
@@ -32,14 +31,15 @@ func scanThread(r *pgx.Row) (t models.Thread, err error) {
 	return t, err
 }
 
-func scanThreadRows(r *pgx.Rows) (threads []models.Thread, err error) {
-	threads = make([]models.Thread, 0)
+func scanThreadRows(r *pgx.Rows) ([]models.Thread, error) {
+	threads := make([]models.Thread, 0)
+	defer r.Close()
 	for r.Next() {
+
 		thread := models.Thread{}
 		slug := sql.NullString{}
 
-		//ID, author, created, forum, message, slug, title, votes
-		err = r.Scan(&thread.ID,&thread.Author, &thread.Created, &thread.Forum,&thread.Message, &slug, &thread.Title, &thread.Votes)
+		err := r.Scan(&thread.ID,&thread.Author, &thread.Created, &thread.Forum,&thread.Message, &slug, &thread.Title, &thread.Votes)
 		if err != nil {
 			return threads, err
 		}
@@ -47,9 +47,8 @@ func scanThreadRows(r *pgx.Rows) (threads []models.Thread, err error) {
 		if slug.Valid {
 			thread.Slag = slug.String
 		}
-
 		threads = append(threads, thread)
 	}
 
-	return
+	return threads, nil
 }
